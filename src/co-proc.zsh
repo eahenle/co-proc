@@ -578,7 +578,28 @@ co_proc_accept_line() {
     CURSOR=${#BUFFER}
   fi
 
-  zle .accept-line
+  if co_proc__zle_widget_exists co_proc_native_accept_line; then
+    zle co_proc_native_accept_line
+  else
+    zle .accept-line
+  fi
+}
+
+co_proc__zle_widget_exists() {
+  emulate -L zsh
+  local widget=${1:-}
+
+  [[ -n $widget ]] || return 1
+  zle -A "$widget" co_proc__zle_probe_widget 2>/dev/null || return 1
+  zle -D co_proc__zle_probe_widget 2>/dev/null || :
+}
+
+co_proc__zle_accept_line_is_ours() {
+  emulate -L zsh
+  local spec
+
+  spec=$(zle -lL accept-line 2>/dev/null) || return 1
+  [[ $spec == "zle -N accept-line co_proc_accept_line" ]]
 }
 
 co_proc_enable_zle() {
@@ -589,11 +610,14 @@ co_proc_enable_zle() {
     return 69
   fi
 
-  (( CO_PROC_ZLE_ENABLED )) && return 0
+  if co_proc__zle_accept_line_is_ours; then
+    CO_PROC_ZLE_ENABLED=1
+    return 0
+  fi
 
   zle -N co_proc_accept_line || return $?
   zle -A accept-line co_proc_native_accept_line 2>/dev/null || \
-    zle -A .accept-line co_proc_native_accept_line 2>/dev/null || :
+    zle -A .accept-line co_proc_native_accept_line 2>/dev/null || return $?
   zle -N accept-line co_proc_accept_line || return $?
   CO_PROC_ZLE_ENABLED=1
 }
@@ -606,6 +630,11 @@ co_proc_disable_zle() {
   fi
 
   (( CO_PROC_ZLE_ENABLED )) || return 0
+
+  if ! co_proc__zle_accept_line_is_ours; then
+    CO_PROC_ZLE_ENABLED=0
+    return 0
+  fi
 
   zle -A co_proc_native_accept_line accept-line 2>/dev/null || \
     zle -A .accept-line accept-line 2>/dev/null || :

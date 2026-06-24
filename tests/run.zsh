@@ -227,16 +227,41 @@ test_rewrite_token_inspection() {
   assert_eq "coproc calc cat >x" "$got" "redirection should not rewrite"
 }
 
+test_accept_line_delegates_to_saved_widget() {
+  emulate -L zsh
+  local BUFFER="coproc list"
+  local -a zle_calls=()
+
+  zle() {
+    zle_calls+=("$*")
+    return 0
+  }
+
+  co_proc_accept_line || return 1
+  assert_eq "co-proc list" "$BUFFER" "accept-line should rewrite buffer" || return 1
+  assert_eq "co_proc_native_accept_line" "$zle_calls[-1]" "accept-line should delegate to saved widget"
+}
+
 test_enable_zle_in_interactive_shell() {
   emulate -L zsh
   local output probe shell=${commands[zsh]:-zsh}
 
-  probe="source ${(q)SRC}; co-proc enable-zle; print -r -- enable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe="pre_existing_accept_line() { zle .accept-line; }; zle -N accept-line pre_existing_accept_line"
+  probe+="; source ${(q)SRC}; co-proc enable-zle; print -r -- enable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe+="; print -r -- accept=\"\$(zle -lL accept-line 2>/dev/null)\""
+  probe+="; print -r -- native=\"\$(zle -lL co_proc_native_accept_line 2>/dev/null)\""
+  probe+="; later_accept_line() { zle .accept-line; }; zle -N accept-line later_accept_line"
+  probe+="; co-proc disable-zle; print -r -- passive_disable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe+="; print -r -- passive_accept=\"\$(zle -lL accept-line 2>/dev/null)\""
+  probe+="; co-proc enable-zle; print -r -- reenable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe+="; print -r -- reaccept=\"\$(zle -lL accept-line 2>/dev/null)\""
+  probe+="; print -r -- renative=\"\$(zle -lL co_proc_native_accept_line 2>/dev/null)\""
   probe+="; co-proc disable-zle; print -r -- disable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe+="; print -r -- disabled=\"\$(zle -lL accept-line 2>/dev/null)\""
   probe+="; zle -A accept-line __co_proc_probe_accept; print -r -- accept_alias=\$?"
 
   output=$("$shell" -fic "$probe" 2>&1) || return 1
-  assert_eq $'enable=0 state=1\ndisable=0 state=0\naccept_alias=0' "$output" "enable-zle should install and restore accept-line"
+  assert_eq $'enable=0 state=1\naccept=zle -N accept-line co_proc_accept_line\nnative=zle -N co_proc_native_accept_line pre_existing_accept_line\npassive_disable=0 state=0\npassive_accept=zle -N accept-line later_accept_line\nreenable=0 state=1\nreaccept=zle -N accept-line co_proc_accept_line\nrenative=zle -N co_proc_native_accept_line later_accept_line\ndisable=0 state=0\ndisabled=zle -N accept-line later_accept_line\naccept_alias=0' "$output" "enable-zle should install, reinstall, and restore accept-line"
 }
 
 test_switch_and_default_read() {
@@ -313,6 +338,7 @@ run_test "native simple coproc remains native" test_native_coproc_simple_command
 run_test "native grouped coproc remains native" test_native_coproc_group_remains_native
 run_test "named process survives later native coproc" test_named_process_survives_later_native_coproc
 run_test "interactive rewrite uses token inspection" test_rewrite_token_inspection
+run_test "accept-line delegates to saved widget" test_accept_line_delegates_to_saved_widget
 run_test "enable-zle works in an interactive shell" test_enable_zle_in_interactive_shell
 run_test "switch and default read use current coprocess" test_switch_and_default_read
 run_test "stress create and destroy hundreds" test_stress_create_destroy_hundreds
