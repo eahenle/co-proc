@@ -227,6 +227,18 @@ test_rewrite_token_inspection() {
   assert_eq "coproc calc cat >x" "$got" "redirection should not rewrite"
 }
 
+test_enable_zle_in_interactive_shell() {
+  emulate -L zsh
+  local output probe shell=${commands[zsh]:-zsh}
+
+  probe="source ${(q)SRC}; co-proc enable-zle; print -r -- enable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe+="; co-proc disable-zle; print -r -- disable=\$? state=\$CO_PROC_ZLE_ENABLED"
+  probe+="; zle -A accept-line __co_proc_probe_accept; print -r -- accept_alias=\$?"
+
+  output=$("$shell" -fic "$probe" 2>&1) || return 1
+  assert_eq $'enable=0 state=1\ndisable=0 state=0\naccept_alias=0' "$output" "enable-zle should install and restore accept-line"
+}
+
 test_switch_and_default_read() {
   emulate -L zsh
   local got
@@ -301,6 +313,7 @@ run_test "native simple coproc remains native" test_native_coproc_simple_command
 run_test "native grouped coproc remains native" test_native_coproc_group_remains_native
 run_test "named process survives later native coproc" test_named_process_survives_later_native_coproc
 run_test "interactive rewrite uses token inspection" test_rewrite_token_inspection
+run_test "enable-zle works in an interactive shell" test_enable_zle_in_interactive_shell
 run_test "switch and default read use current coprocess" test_switch_and_default_read
 run_test "stress create and destroy hundreds" test_stress_create_destroy_hundreds
 
