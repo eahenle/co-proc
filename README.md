@@ -78,3 +78,7 @@ ShellCheck does not parse zsh syntax directly, so linting combines:
 - `shfmt` for POSIX helper scripts
 
 Documentation lives in `docs/` and is built with MkDocs Material.
+
+## License
+
+`co-proc` is released under the MIT License. See [LICENSE](LICENSE).
