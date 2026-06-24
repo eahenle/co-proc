@@ -245,6 +245,29 @@ test_switch_and_default_read() {
   assert_eq two "$got" "switch should update current coprocess"
 }
 
+test_documented_introspection_and_aliases() {
+  emulate -L zsh
+  local current listing info got
+
+  co-proc start docs cat || return 1
+
+  current=$(co-proc current) || return 1
+  assert_eq docs "$current" "current should report the most recent coprocess" || return 1
+
+  listing=$(cplist) || return 1
+  assert_match '^docs pid=[0-9]+ in=[0-9]+ out=[0-9]+ state=running current$' "$listing" "list should show descriptor registry details" || return 1
+
+  info=$(co-proc info docs) || return 1
+  assert_match $'name=docs\npid=[0-9]+\nin=[0-9]+\nout=[0-9]+\nstate=running\ncurrent=yes\nstarted=[0-9]+\ncommand=cat' "$info" "info should describe the registered coprocess" || return 1
+
+  eval 'cpsend docs "via alias"' || return 1
+  got=$(eval 'cpread -t 1 docs') || return 1
+  assert_eq "via alias" "$got" "send/read aliases should proxy documented commands" || return 1
+
+  eval 'cpstop docs' || return 1
+  assert_eq "" "$(co-proc list)" "stop alias should remove the coprocess"
+}
+
 test_stress_create_destroy_hundreds() {
   emulate -L zsh
   local i name got before after
@@ -302,6 +325,7 @@ run_test "native grouped coproc remains native" test_native_coproc_group_remains
 run_test "named process survives later native coproc" test_named_process_survives_later_native_coproc
 run_test "interactive rewrite uses token inspection" test_rewrite_token_inspection
 run_test "switch and default read use current coprocess" test_switch_and_default_read
+run_test "documented introspection commands and aliases work" test_documented_introspection_and_aliases
 run_test "stress create and destroy hundreds" test_stress_create_destroy_hundreds
 
 if (( TEST_FAILED > 0 )); then
