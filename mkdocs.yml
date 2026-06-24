@@ -1,0 +1,33 @@
+site_name: co-proc
+site_description: Named zsh coprocesses with native compatibility.
+repo_url: https://github.com/eahenle/co-proc
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.instant
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Concepts:
+      - What Is a Coprocess: concepts/coprocesses.md
+      - Compatibility: concepts/compatibility.md
+  - Examples:
+      - Calculator: examples/calculator.md
+      - SQLite: examples/sqlite.md
+      - Python Service: examples/python-service.md
+      - Long-Running Services: examples/services.md
+  - Reference:
+      - Commands: reference/commands.md
+      - Registry: reference/registry.md
+  - Development:
+      - Architecture: development/architecture.md
+      - Parser Notes: development/parser-notes.md
+      - Journal: development/journal.md
+      - Blog Notes: development/blog-notes.md
