@@ -254,7 +254,7 @@ test_documented_introspection_and_aliases() {
   current=$(co-proc current) || return 1
   assert_eq docs "$current" "current should report the most recent coprocess" || return 1
 
-  listing=$(cplist) || return 1
+  listing=$(eval 'cplist') || return 1
   assert_match '^docs pid=[0-9]+ in=[0-9]+ out=[0-9]+ state=running current$' "$listing" "list should show descriptor registry details" || return 1
 
   info=$(co-proc info docs) || return 1
