@@ -1,6 +1,7 @@
 # Attachable Cross-process IPC
 
-Status: design proposal; the commands and endpoints below are not implemented.
+Status: attachable FIFO transport and buffered multiplexing implemented; richer
+peer-state semantics remain follow-up work.
 
 ## Motivation
 
@@ -26,10 +27,10 @@ Use an owner-only directory such as:
     metadata.json
 ```
 
-The concrete transport may use Unix sockets or paired named pipes. Creation
-must reject unsafe ownership, symlinks, invalid names, and unexpectedly broad
-permissions. Cleanup must verify the recorded PID and endpoint ownership before
-removing anything.
+The initial transport uses paired named pipes beneath a secure per-user runtime
+root. Creation rejects unsafe ownership, symlinks, invalid names, and
+unexpectedly broad permissions. Cleanup verifies the recorded PID and endpoint
+ownership before removing anything.
 
 ## Proposed behavior
 
@@ -37,10 +38,13 @@ removing anything.
 - `co-proc attach NAME` resolves the endpoints for an independent client.
 - `co-proc send NAME JSON` writes one bounded NDJSON frame.
 - `co-proc recv NAME` returns one complete buffered frame.
-- `co-proc pump` uses `zselect` to drain every readable endpoint into a
-  per-name buffer before dispatching complete lines.
 - `co-proc info NAME` reports readiness, PID, endpoint paths, buffered bytes,
   and peer state without exposing message bodies.
+
+Implemented now: `spawn`, `attach`, cross-process `send`, `recv`, endpoint-aware
+`info`, `list`, `stop`, stale `prune`, and `pump` using `zselect` and `sysread`
+to drain readable endpoints into bounded per-name buffers. Richer peer-state
+fields in `info` remain planned.
 
 Existing `start`, `send`, `read`, `stop`, and native zsh compatibility must
 remain intact unless an attachable mode was explicitly requested.
@@ -49,14 +53,16 @@ remain intact unless an attachable mode was explicitly requested.
 
 Messages are UTF-8 NDJSON control frames. Binary data is never written to a
 channel; callers send an absolute file path plus immutable IDs and metadata.
-Set a maximum frame and buffer size, reject unterminated oversized frames, and
-surface `ready`, `busy`, `ack`, `result`, and `error` states. The supervisor
-must continuously drain readable channels so one worker filling a roughly
-64-KiB pipe cannot deadlock unrelated workers.
+The sender enforces a 4095-byte limit, a single terminated line, and a version-1
+envelope with non-empty `type` and `id`, which keeps simultaneous writes atomic.
+The pump assembles partial lines, enforces a configurable per-name buffer
+ceiling, and drains every ready channel so a slow consumer on one channel does
+not prevent progress on unrelated workers.
 
 ## Validation
 
-Add tests for multiple simultaneous attached clients, partial-line buffering,
-messages larger than one read chunk, slow readers, full-pipe backpressure,
-worker exit during a write, stale endpoint cleanup, permissions, malformed
-frames, and preservation of all existing `co-proc` behavior.
+Current tests cover independent attached clients, simultaneous atomic writers,
+partial-line assembly, multi-channel pumping, buffer ceilings, stale endpoint
+cleanup, permissions, envelope rejection, frame bounds, and preservation of all
+existing `co-proc` behavior. Slow-reader saturation and worker exit during a
+write remain follow-up stress cases.

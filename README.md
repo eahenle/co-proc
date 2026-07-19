@@ -15,6 +15,22 @@ co-proc read -t 1 calc
 co-proc stop calc
 ```
 
+For cross-process NDJSON control channels, start an attachable process. The
+process survives the shell that spawned it, and later shells discover it through
+an owner-only runtime directory:
+
+```zsh
+co-proc spawn agent cat
+co-proc send agent '{"version":1,"type":"ready","id":"agent-1"}'
+co-proc pump -t 1 agent
+co-proc recv -t 1 agent
+co-proc stop agent
+```
+
+Attachable frames are limited to 4095 bytes so concurrent FIFO writers remain
+atomic. Every frame must be one line with `version: 1` and non-empty `type` and
+`id` fields. Binary payloads stay out of band and are referenced by path.
+
 Interactive users can opt into natural extended syntax:
 
 ```zsh
@@ -44,10 +60,14 @@ Then add the installed source line printed by `make install` to `~/.zshrc`.
 
 ```zsh
 co-proc start NAME COMMAND [ARG...]
+co-proc spawn NAME COMMAND [ARG...]
+co-proc attach NAME
 co-proc list
 co-proc info NAME
 co-proc send NAME TEXT...
 co-proc read [-t SECONDS] [NAME]
+co-proc recv [-t SECONDS] NAME
+co-proc pump [-t SECONDS] [NAME...]
 co-proc switch NAME
 co-proc stop [-f] NAME
 co-proc wait NAME
