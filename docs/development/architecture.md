@@ -52,18 +52,19 @@ removes the active registry entry.
   separators, grouped commands, or control operators.
 - zsh still retargets the special `p` handle whenever any native coprocess is
   started.
-- Numbered descriptors are owned by the sourcing zsh process; unrelated
-  processes cannot currently discover or attach to a named registry entry.
+- Shell-local `start` entries still use numbered descriptors owned by the
+  sourcing zsh process. Cross-process consumers must explicitly use `spawn`.
 
-## Proposed attachable transport
+## Attachable transport
 
-An upcoming consumer needs named channels that independent processes can attach
-to without inheriting the registry shell's descriptors. This is a multiplexer
-extension, not a replacement for the existing native-coproc-backed API.
+`co-proc spawn` adds named channels that independent processes can attach to
+without inheriting the registry shell's descriptors. It is an extension, not a
+replacement for the existing native-coproc-backed API.
 
-The proposal uses owner-only endpoints beneath `/tmp/co-proc/$UID/` (or a secure
-equivalent under `$TMPDIR`), newline-delimited control messages, continuous
-`zselect` draining into per-name buffers, and explicit backpressure signals.
-Binary payloads stay out of band and are referenced by path.
+The implementation uses owner-only FIFO pairs beneath a secure per-user runtime
+directory and bounded newline-delimited control messages. Frames stay below
+`PIPE_BUF` so simultaneous client writes are atomic. Binary payloads stay out of
+band and are referenced by path. `co-proc pump` uses `zselect` plus `sysread` to
+drain multiple ready outputs into bounded, supervisor-owned per-name buffers.
 
-See [Attachable cross-process IPC](attachable-ipc.md) for the draft contract.
+See [Attachable cross-process IPC](attachable-ipc.md) for the staged contract.
