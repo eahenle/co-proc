@@ -28,6 +28,7 @@ nav:
       - Registry: reference/registry.md
   - Development:
       - Architecture: development/architecture.md
+      - Attachable IPC Proposal: development/attachable-ipc.md
       - Parser Notes: development/parser-notes.md
       - Journal: development/journal.md
       - Blog Notes: development/blog-notes.md
