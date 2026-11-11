@@ -22,6 +22,9 @@
 # That widget rewrites simple extended forms such as `coproc calc bc -l` into
 # `co-proc start calc -- bc -l` before the line is accepted.
 
+# Resolve alongside this sourced file, not the caller's working directory.
+typeset -g CO_PROC_FRAME_VALIDATOR="${${(%):-%N}:A:h}/validate-frame.py"
+
 typeset -g CO_PROC_VERSION=${CO_PROC_VERSION:-0.2.0}
 typeset -g CO_PROC_CURRENT=${CO_PROC_CURRENT:-}
 typeset -g CO_PROC_START_SETTLE=${CO_PROC_START_SETTLE:-0.02}
@@ -295,10 +298,17 @@ co_proc__validate_frame() {
     co_proc__err "frame exceeds CO_PROC_MAX_FRAME_BYTES=$CO_PROC_MAX_FRAME_BYTES"
     return 75
   fi
-  if [[ ! $frame =~ '^\{.*\}$' || ! $frame =~ '"version"[[:space:]]*:[[:space:]]*1([[:space:]]*[,}])' || ! $frame =~ '"type"[[:space:]]*:[[:space:]]*"[^"[:space:]]+"' || ! $frame =~ '"id"[[:space:]]*:[[:space:]]*"[^"[:space:]]+"' ]]; then
-    co_proc__err "frame must be a version 1 JSON object with non-empty type and id"
-    return 65
+  if ! whence -p python3 >/dev/null 2>&1; then
+    co_proc__err "python3 is required to validate attachable JSON frames"
+    return 69
   fi
+  if [[ ! -r $CO_PROC_FRAME_VALIDATOR ]]; then
+    co_proc__err "JSON frame validator is unavailable: $CO_PROC_FRAME_VALIDATOR"
+    return 69
+  fi
+  # stdin preserves arbitrary bytes (including invalid UTF-8 and raw NULs)
+  # for strict decoding. Isolated mode ignores caller Python customizations.
+  print -rn -- "$frame" | command python3 -I "$CO_PROC_FRAME_VALIDATOR"
 }
 
 co_proc_spawn() {

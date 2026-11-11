@@ -543,6 +543,7 @@ run_test "simultaneous attachable clients preserve atomic frames" test_attachabl
 run_test "attachable endpoints enforce permissions and prune stale processes" test_attachable_permissions_and_stale_pruning
 run_test "pump buffers partial frames" test_pump_buffers_partial_frames
 run_test "pump multiplexes channels and bounds buffers" test_pump_multiplexes_channels_and_bounds_buffers
+source "$ROOT/tests/frames.zsh"
 run_test "stress create and destroy hundreds" test_stress_create_destroy_hundreds
 
 if (( TEST_FAILED > 0 )); then
