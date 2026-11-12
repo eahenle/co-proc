@@ -541,6 +541,7 @@ run_test "attachable coprocesses round-trip across independent clients" test_att
 run_test "attachable coprocesses reject invalid and oversized frames" test_attachable_rejects_invalid_and_oversized_frames
 run_test "simultaneous attachable clients preserve atomic frames" test_attachable_simultaneous_clients_are_atomic
 run_test "attachable endpoints enforce permissions and prune stale processes" test_attachable_permissions_and_stale_pruning
+source "$ROOT/tests/pump-recovery.zsh"
 run_test "pump buffers partial frames" test_pump_buffers_partial_frames
 run_test "pump multiplexes channels and bounds buffers" test_pump_multiplexes_channels_and_bounds_buffers
 run_test "stress create and destroy hundreds" test_stress_create_destroy_hundreds

@@ -59,6 +59,14 @@ The pump assembles partial lines, enforces a configurable per-name buffer
 ceiling, and drains every ready channel so a slow consumer on one channel does
 not prevent progress on unrelated workers.
 
+If a read contains rejected frames, the pump discards those lines while still
+queuing every valid complete frame in that read, in order, and retaining any
+incomplete tail. It reports the first rejection status rather than success.
+The remaining ready channels are still serviced before that error is returned;
+valid output does not depend on a malformed peer writing another byte. Buffer
+ceilings still apply before a chunk is accepted. A caller may drain valid queued
+frames with `recv` after handling the pump error.
+
 ## Validation
 
 Current tests cover independent attached clients, simultaneous atomic writers,

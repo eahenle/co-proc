@@ -17,6 +17,7 @@ syntax:
 	$(ZSH_BIN) -n examples/calculator.zsh
 	$(ZSH_BIN) -n examples/multi-cat.zsh
 	$(ZSH_BIN) -n examples/python-service.zsh
+	$(ZSH_BIN) -n tests/pump-recovery.zsh
 
 shellcheck:
 	@if command -v shellcheck >/dev/null 2>&1; then \

@@ -527,7 +527,7 @@ co_proc__open_pump_fd() {
 
 co_proc__queue_pump_chunk() {
   emulate -L zsh
-  local LC_ALL=C name=$1 chunk=$2 buffer line queue rc
+  local LC_ALL=C name=$1 chunk=$2 buffer line queue rc=0 frame_rc
 
   buffer=${CO_PROC_PUMP_BUFFER[$name]-}$chunk
   queue=${CO_PROC_PUMP_QUEUE[$name]-}
@@ -539,14 +539,17 @@ co_proc__queue_pump_chunk() {
   while [[ $buffer == *$'\n'* ]]; do
     line=${buffer%%$'\n'*}
     buffer=${buffer#*$'\n'}
-    co_proc__validate_frame "$line" || {
-      rc=$?
-      CO_PROC_PUMP_BUFFER[$name]=$buffer
-      return "$rc"
-    }
-    CO_PROC_PUMP_QUEUE[$name]+="$line"$'\n'
+    if co_proc__validate_frame "$line"; then
+      CO_PROC_PUMP_QUEUE[$name]+="$line"$'\n'
+    else
+      frame_rc=$?
+      (( rc == 0 )) && rc=$frame_rc
+      # This chunk is already consumed from the FIFO. Reject only this line,
+      # not the valid complete frames that may follow it in the same chunk.
+    fi
   done
   CO_PROC_PUMP_BUFFER[$name]=$buffer
+  return "$rc"
 }
 
 co_proc__pop_buffered_frame() {
@@ -572,7 +575,7 @@ co_proc_pump() {
     return 69
   }
 
-  local timeout= name dir fd chunk
+  local timeout= name dir fd chunk rc=0 chunk_rc
   integer timeout_cs=0 count=0 bytes=0
   local -a names endpoint_dirs fds
   local -A ready
@@ -641,12 +644,19 @@ co_proc_pump() {
     [[ -n $name ]] || continue
     while sysread -i "$fd" -s 8192 -t 0 -c bytes chunk; do
       (( bytes > 0 )) || break
-      co_proc__queue_pump_chunk "$name" "$chunk" || return $?
       (( count += bytes ))
+      co_proc__queue_pump_chunk "$name" "$chunk" || {
+        chunk_rc=$?
+        (( rc == 0 )) && rc=$chunk_rc
+        # Stop reading this channel on a rejection or capacity error, but
+        # still service the other channels from the same readiness result.
+        break
+      }
       (( bytes < 8192 )) && break
     done
   done
   REPLY=$count
+  (( rc == 0 )) || return "$rc"
   (( count > 0 ))
 }
 
