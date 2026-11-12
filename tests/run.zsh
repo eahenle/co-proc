@@ -524,6 +524,8 @@ run_test() {
   fi
 }
 
+source "$ROOT/tests/recv-errors.zsh"
+
 run_test "basic start/send/read/stop" test_basic_start_send_read_stop
 run_test "two simultaneous coprocesses are isolated" test_multiple_two_processes_are_isolated
 run_test "twenty simultaneous coprocesses have unique fds" test_many_simultaneous_processes_have_unique_fds
@@ -544,6 +546,16 @@ run_test "attachable endpoints enforce permissions and prune stale processes" te
 run_test "pump buffers partial frames" test_pump_buffers_partial_frames
 run_test "pump multiplexes channels and bounds buffers" test_pump_multiplexes_channels_and_bounds_buffers
 run_test "stress create and destroy hundreds" test_stress_create_destroy_hundreds
+
+run_test "pump-assisted recv malformed status" test_recv_pump_malformed_status
+run_test "pump-assisted recv oversized status" test_recv_pump_oversized_status
+run_test "pump-assisted recv capacity status" test_recv_pump_capacity_status
+run_test "pump-assisted recv timeout status" test_recv_pump_timeout_status
+run_test "pump-assisted recv partial status" test_recv_pump_partial_status
+run_test "pump-assisted recv valid status" test_recv_pump_valid_status
+run_test "pump-assisted recv bad_timeout status" test_recv_pump_bad_timeout_status
+
+run_test "pump-assisted recv returns a valid frame despite later rejection" test_recv_pump_valid_then_bad_status
 
 if (( TEST_FAILED > 0 )); then
   print -ru2 -- "$TEST_FAILED/$TEST_COUNT tests failed: ${(j:, :)TEST_FAILURES}"

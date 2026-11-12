@@ -480,13 +480,17 @@ co_proc_recv() {
     if co_proc__pop_buffered_frame "$name"; then
       return 0
     fi
+    rc=0
     if [[ -n $timeout ]]; then
-      co_proc_pump -t "$timeout" "$name" >/dev/null || :
+      co_proc_pump -t "$timeout" "$name" >/dev/null || rc=$?
     else
-      co_proc_pump "$name" >/dev/null || :
+      co_proc_pump "$name" >/dev/null || rc=$?
     fi
-    co_proc__pop_buffered_frame "$name"
-    return $?
+    co_proc__pop_buffered_frame "$name" && return 0
+    # No complete frame: preserve a pump failure instead of disguising it
+    # as a quiet channel. A successful partial read still has no frame yet.
+    (( rc != 0 )) && return "$rc"
+    return 1
   fi
 
   read_args=(-r)

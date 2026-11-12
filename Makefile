@@ -14,6 +14,7 @@ syntax:
 	$(ZSH_BIN) -n co-proc.zsh
 	$(ZSH_BIN) -n src/co-proc.zsh
 	$(ZSH_BIN) -n tests/run.zsh
+	$(ZSH_BIN) -n tests/recv-errors.zsh
 	$(ZSH_BIN) -n examples/calculator.zsh
 	$(ZSH_BIN) -n examples/multi-cat.zsh
 	$(ZSH_BIN) -n examples/python-service.zsh
