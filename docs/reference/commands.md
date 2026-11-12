@@ -11,7 +11,10 @@ Names must match:
 ```
 
 Startup fails if the name already exists, the command is missing, or the command
-cannot be resolved.
+cannot be resolved. A command that exits during the startup check is not
+registered: a zero child exit becomes startup failure status `70`, while a
+nonzero child exit status is preserved. Existing coprocesses and the current
+selection are unchanged, and the failed name can be reused.
 
 ## `co-proc list`
 

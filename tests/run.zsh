@@ -123,6 +123,40 @@ test_duplicate_invalid_and_missing_inputs_fail() {
   assert_failure co-proc start dup cat || return 1
 }
 
+# A successful start must leave a usable registration. Returning the child's
+# zero exit status before registration falsely lets dependent commands proceed.
+test_early_successful_exit_is_not_a_successful_start() {
+  emulate -L zsh
+  local CO_PROC_START_SETTLE=0.1 rc continued=no got
+
+  co-proc start keeper cat || return 1
+  co-proc start finished zsh -fc 'exit 0' 2>/dev/null && continued=yes
+  rc=$?
+  assert_eq 70 "$rc" "early successful exit is a startup failure" || return 1
+  assert_eq no "$continued" "failure must stop an AND chain" || return 1
+  assert_eq '' "${CO_PROC_PID[finished]-}" "failed process is not registered" || return 1
+  assert_eq '' "${CO_PROC_IN[finished]-}${CO_PROC_OUT[finished]-}" "failed process retains no registry descriptors" || return 1
+  assert_eq keeper "$CO_PROC_CURRENT" "failed start preserves the current process" || return 1
+  co-proc send keeper still-alive || return 1
+  got=$(co-proc read -t 1 keeper) || return 1
+  assert_eq still-alive "$got" "existing process remains usable" || return 1
+  co-proc start finished cat || return 1
+  co-proc send finished reused || return 1
+  got=$(co-proc read -t 1 finished) || return 1
+  assert_eq reused "$got" "failed startup name can be reused"
+}
+
+test_early_failed_exit_preserves_child_status() {
+  emulate -L zsh
+  local CO_PROC_START_SETTLE=0.1 rc
+
+  co-proc start failed zsh -fc 'exit 7' 2>/dev/null
+  rc=$?
+  assert_eq 7 "$rc" "nonzero startup exit status is preserved" || return 1
+  assert_eq '' "${CO_PROC_PID[failed]-}" "failed process is not registered" || return 1
+  assert_eq '' "$CO_PROC_CURRENT" "failed first start sets no current process"
+}
+
 test_process_exit_and_prune() {
   emulate -L zsh
   local got
@@ -530,6 +564,8 @@ run_test "basic start/send/read/stop" test_basic_start_send_read_stop
 run_test "two simultaneous coprocesses are isolated" test_multiple_two_processes_are_isolated
 run_test "twenty simultaneous coprocesses have unique fds" test_many_simultaneous_processes_have_unique_fds
 run_test "duplicate, invalid, and missing inputs fail" test_duplicate_invalid_and_missing_inputs_fail
+run_test "early successful exit is a startup failure" test_early_successful_exit_is_not_a_successful_start
+run_test "early failed exit preserves child status" test_early_failed_exit_preserves_child_status
 run_test "unexpected process exit can be pruned" test_process_exit_and_prune
 run_test "native simple coproc remains native" test_native_coproc_simple_command_remains_native
 run_test "native grouped coproc remains native" test_native_coproc_group_remains_native
