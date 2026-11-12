@@ -22,6 +22,9 @@
 # That widget rewrites simple extended forms such as `coproc calc bc -l` into
 # `co-proc start calc -- bc -l` before the line is accepted.
 
+# Resolve alongside this sourced file, not the caller's working directory.
+typeset -g CO_PROC_FRAME_VALIDATOR="${${(%):-%N}:A:h}/validate-frame.py"
+
 typeset -g CO_PROC_VERSION=${CO_PROC_VERSION:-0.2.0}
 typeset -g CO_PROC_CURRENT=${CO_PROC_CURRENT:-}
 typeset -g CO_PROC_START_SETTLE=${CO_PROC_START_SETTLE:-0.02}
@@ -295,10 +298,17 @@ co_proc__validate_frame() {
     co_proc__err "frame exceeds CO_PROC_MAX_FRAME_BYTES=$CO_PROC_MAX_FRAME_BYTES"
     return 75
   fi
-  if [[ ! $frame =~ '^\{.*\}$' || ! $frame =~ '"version"[[:space:]]*:[[:space:]]*1([[:space:]]*[,}])' || ! $frame =~ '"type"[[:space:]]*:[[:space:]]*"[^"[:space:]]+"' || ! $frame =~ '"id"[[:space:]]*:[[:space:]]*"[^"[:space:]]+"' ]]; then
-    co_proc__err "frame must be a version 1 JSON object with non-empty type and id"
-    return 65
+  if ! whence -p python3 >/dev/null 2>&1; then
+    co_proc__err "python3 is required to validate attachable JSON frames"
+    return 69
   fi
+  if [[ ! -r $CO_PROC_FRAME_VALIDATOR ]]; then
+    co_proc__err "JSON frame validator is unavailable: $CO_PROC_FRAME_VALIDATOR"
+    return 69
+  fi
+  # stdin preserves arbitrary bytes (including invalid UTF-8 and raw NULs)
+  # for strict decoding. Isolated mode ignores caller Python customizations.
+  print -rn -- "$frame" | command python3 -I "$CO_PROC_FRAME_VALIDATOR"
 }
 
 co_proc_spawn() {
@@ -480,13 +490,17 @@ co_proc_recv() {
     if co_proc__pop_buffered_frame "$name"; then
       return 0
     fi
+    rc=0
     if [[ -n $timeout ]]; then
-      co_proc_pump -t "$timeout" "$name" >/dev/null || :
+      co_proc_pump -t "$timeout" "$name" >/dev/null || rc=$?
     else
-      co_proc_pump "$name" >/dev/null || :
+      co_proc_pump "$name" >/dev/null || rc=$?
     fi
-    co_proc__pop_buffered_frame "$name"
-    return $?
+    co_proc__pop_buffered_frame "$name" && return 0
+    # No complete frame: preserve a pump failure instead of disguising it
+    # as a quiet channel. A successful partial read still has no frame yet.
+    (( rc != 0 )) && return "$rc"
+    return 1
   fi
 
   read_args=(-r)
@@ -527,7 +541,7 @@ co_proc__open_pump_fd() {
 
 co_proc__queue_pump_chunk() {
   emulate -L zsh
-  local LC_ALL=C name=$1 chunk=$2 buffer line queue rc
+  local LC_ALL=C name=$1 chunk=$2 buffer line queue rc=0 frame_rc
 
   buffer=${CO_PROC_PUMP_BUFFER[$name]-}$chunk
   queue=${CO_PROC_PUMP_QUEUE[$name]-}
@@ -539,14 +553,17 @@ co_proc__queue_pump_chunk() {
   while [[ $buffer == *$'\n'* ]]; do
     line=${buffer%%$'\n'*}
     buffer=${buffer#*$'\n'}
-    co_proc__validate_frame "$line" || {
-      rc=$?
-      CO_PROC_PUMP_BUFFER[$name]=$buffer
-      return "$rc"
-    }
-    CO_PROC_PUMP_QUEUE[$name]+="$line"$'\n'
+    if co_proc__validate_frame "$line"; then
+      CO_PROC_PUMP_QUEUE[$name]+="$line"$'\n'
+    else
+      frame_rc=$?
+      (( rc == 0 )) && rc=$frame_rc
+      # This chunk is already consumed from the FIFO. Reject only this line,
+      # not the valid complete frames that may follow it in the same chunk.
+    fi
   done
   CO_PROC_PUMP_BUFFER[$name]=$buffer
+  return "$rc"
 }
 
 co_proc__pop_buffered_frame() {
@@ -572,7 +589,7 @@ co_proc_pump() {
     return 69
   }
 
-  local timeout= name dir fd chunk
+  local timeout= name dir fd chunk rc=0 chunk_rc
   integer timeout_cs=0 count=0 bytes=0
   local -a names endpoint_dirs fds
   local -A ready
@@ -641,12 +658,19 @@ co_proc_pump() {
     [[ -n $name ]] || continue
     while sysread -i "$fd" -s 8192 -t 0 -c bytes chunk; do
       (( bytes > 0 )) || break
-      co_proc__queue_pump_chunk "$name" "$chunk" || return $?
       (( count += bytes ))
+      co_proc__queue_pump_chunk "$name" "$chunk" || {
+        chunk_rc=$?
+        (( rc == 0 )) && rc=$chunk_rc
+        # Stop reading this channel on a rejection or capacity error, but
+        # still service the other channels from the same readiness result.
+        break
+      }
       (( bytes < 8192 )) && break
     done
   done
   REPLY=$count
+  (( rc == 0 )) || return "$rc"
   (( count > 0 ))
 }
 

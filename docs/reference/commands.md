@@ -64,6 +64,12 @@ process.
 Read one complete line from an attachable process. `recv` never falls back to a
 shell-local numbered-descriptor entry; use `read` for those entries. When a
 shell has already pumped the channel, `recv` consumes its oldest buffered frame.
+If no complete frame is available after pumping, it preserves the pump's error
+status (for example, `65` for a rejected frame or `75` for a frame/buffer limit).
+A timeout or a successful read of only an incomplete frame returns `1`; partial
+data remains buffered. If a valid frame is available, `recv` returns it with
+status `0`. Use `pump` directly when you also need rejection status from a batch
+that contains valid frames.
 
 ## `co-proc pump [-t SECONDS] [NAME...]`
 

@@ -1,9 +1,10 @@
 .PHONY: all lint syntax shellcheck shfmt test docs docs-build install smoke clean
 
 ZSH_BIN ?= zsh
+PYTHON_BIN ?= python3
 PREFIX ?= $(HOME)/.local/share/co-proc
 
-ZSH_FILES := co-proc.zsh src/co-proc.zsh tests/run.zsh examples/calculator.zsh examples/multi-cat.zsh examples/python-service.zsh
+ZSH_FILES := co-proc.zsh src/co-proc.zsh tests/run.zsh tests/frames.zsh examples/calculator.zsh examples/multi-cat.zsh examples/python-service.zsh
 SH_FILES := scripts/install.sh scripts/lint-shfmt.sh
 
 all: lint test
@@ -14,9 +15,13 @@ syntax:
 	$(ZSH_BIN) -n co-proc.zsh
 	$(ZSH_BIN) -n src/co-proc.zsh
 	$(ZSH_BIN) -n tests/run.zsh
+	$(ZSH_BIN) -n tests/recv-errors.zsh
+	$(ZSH_BIN) -n tests/frames.zsh
+	$(PYTHON_BIN) -I -c 'import ast, pathlib; ast.parse(pathlib.Path("src/validate-frame.py").read_text())'
 	$(ZSH_BIN) -n examples/calculator.zsh
 	$(ZSH_BIN) -n examples/multi-cat.zsh
 	$(ZSH_BIN) -n examples/python-service.zsh
+	$(ZSH_BIN) -n tests/pump-recovery.zsh
 
 shellcheck:
 	@if command -v shellcheck >/dev/null 2>&1; then \
@@ -41,7 +46,8 @@ install:
 	PREFIX="$(PREFIX)" ./scripts/install.sh
 
 smoke:
-	$(ZSH_BIN) -fc 'source "$(PREFIX)/co-proc.zsh"; co-proc start smoke cat; co-proc send smoke ok; [[ "$$(co-proc read -t 1 smoke)" == ok ]]; co-proc stop smoke'
+	$(ZSH_BIN) -fc 'source "$(PREFIX)/co-proc.zsh"; co_proc__validate_frame '\''{"version":1,"type":"smoke","id":"installed"}'\'''
+	$(ZSH_BIN) -fc 'source "$(PREFIX)/co-proc.zsh"; { co-proc start smoke cat && co-proc send smoke ok && [[ "$$(co-proc read -t 1 smoke)" == ok ]]; } always { co-proc stop smoke }'
 
 clean:
 	rm -rf site dist tmp
