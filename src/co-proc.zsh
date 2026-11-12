@@ -786,6 +786,8 @@ co_proc_start() {
     exec {infd}>&- 2>/dev/null
     exec {outfd}<&- 2>/dev/null
     co_proc__err "command for '$name' exited during startup (status $rc)"
+    # A zero child exit still failed to establish a usable coprocess.
+    (( rc == 0 )) && return 70
     return "$rc"
   fi
 
