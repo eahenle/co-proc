@@ -28,8 +28,16 @@ co-proc stop agent
 ```
 
 Attachable frames are limited to 4095 bytes so concurrent FIFO writers remain
-atomic. Every frame must be one line with `version: 1` and non-empty `type` and
-`id` fields. Binary payloads stay out of band and are referenced by path.
+atomic. Every frame must be one UTF-8 JSON object on a single line, with root
+integer `version: 1` and non-empty string `type` and `id` fields. Duplicate
+object keys are rejected at every depth. Binary payloads stay out of band and
+are referenced by path. See the [frame contract](docs/development/attachable-ipc.md#framing-and-backpressure)
+for encoding and validation details.
+
+Attachable frame validation requires `python3` on `PATH` (standard library only).
+There is no Python dependency for native `coproc` or the in-shell `start` /
+`send` / `read` API. Missing Python fails validation with an explicit error;
+co-proc never installs it automatically.
 
 Interactive users can opt into natural extended syntax:
 
@@ -94,6 +102,7 @@ make docs-build
 ShellCheck does not parse zsh syntax directly, so linting combines:
 
 - `zsh -n` for zsh files
+- Python syntax parsing for the JSON frame validator
 - ShellCheck for POSIX helper scripts
 - `shfmt` for POSIX helper scripts
 

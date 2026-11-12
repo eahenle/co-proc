@@ -46,6 +46,10 @@ jobs:
       - name: Show zsh version
         run: zsh --version
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
       - name: Run tests
         run: make test
 
@@ -77,6 +81,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zsh
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
 
       - name: Install package and run smoke test
         run: |

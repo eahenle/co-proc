@@ -1,5 +1,12 @@
 # Getting Started
 
+## Requirements
+
+Use zsh for the sourceable shell API. Attachable NDJSON channels additionally
+require `python3` on `PATH`; validation uses only its standard library. Native
+`coproc` and in-shell `start` / `send` / `read` do not require Python. The installer
+does not install dependencies or modify your shell profile.
+
 ## Install from a checkout
 
 ```sh
